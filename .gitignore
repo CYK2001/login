@@ -1,0 +1,45 @@
+# Virtual environments
+venv/
+env/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# Uploads
+static/uploads/
+app/static/uploads/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build files
+build/
+dist/
+*.egg-info/
+
+# Database files
+*.db
+*.sqlite3
+*.sql
+
+# Temporary files
+*.tmp
+*.temp

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人信息</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-icons.css') }}">
+    <script type="module" src="{{ url_for('static', filename='js/utils.js') }}"></script>
+</head>
+
+<body class="profile-page">
+    <!-- 顶部通知栏 -->
+    <div id="top-notice" class="top-notice" style="display: none;">
+        <span id="notice-message"></span>
+    </div>
+    
+
+    
+    <div class="profile-container">
+        <!-- 主布局：左侧导航栏 + 右侧内容区域 -->
+        <div class="main-layout">
+            <!-- 左侧导航栏 -->
+            <nav class="side-nav">
+                <div class="nav-header">
+                    <h2>个人信息管理系统</h2>
+                </div>
+                <ul class="nav-menu">
+                    <li class="nav-item active">
+                        <a href="{{ url_for('profile_page') }}" class="nav-link">
+                            <i class="bi bi-person"></i>
+                            <span>个人信息管理</span>
+                        </a>
+                    </li>
+                    {% if current_user_has_permission('用户管理') %}
+                        <li class="nav-item">
+                            <a href="{{ url_for('user_management_page') }}" class="nav-link">
+                                <i class="bi bi-people"></i>
+                                <span>用户管理</span>
+                            </a>
+                        </li>
+                    {% endif %}
+                    {% if current_user_has_permission('角色管理') %}
+                        <li class="nav-item">
+                            <a href="{{ url_for('role_management_page') }}" class="nav-link">
+                                <i class="bi bi-person-badge"></i>
+                                <span>角色管理</span>
+                            </a>
+                        </li>
+                    {% endif %}
+                    {% if current_user_has_permission('审计日志管理') %}
+                        <li class="nav-item">
+                            <a href="{{ url_for('audit_logs_page') }}" class="nav-link">
+                                <i class="bi bi-journal-text"></i>
+                                <span>审计日志</span>
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            
+            <!-- 右侧内容区域 -->
+            <main class="content-area">
+                <!-- 页面标题 -->
+                <div class="page-header">
+                    <h1>个人信息</h1>
+                    <div class="logout-container">
+                        <a href="{{ url_for('logout') }}" class="btn logout-btn">
+                            <i class="bi bi-box-arrow-right"></i> 注销
+                        </a>
+                    </div>
+                </div>
+        
+            <!-- 显示消息 -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="messages-container">
+                        {% for category, message in messages %}
+                            <div class="alert {{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+            
+            <!-- 个人信息内容区域 -->
+            <div class="profile-content">
+            <!-- 个人信息布局：左侧预览 + 右侧管理 -->
+            <div class="profile-layout">
+                <!-- 左侧信息预览区域 -->
+                <div class="profile-preview">
+                    <!-- 基本信息展示区域 -->
+                    <div class="basic-info">
+                        <div class="user-avatar" onclick="document.getElementById('avatar').click();" style="cursor: pointer;">
+                            {% if user.avatar %}
+                                <img src="{{ url_for('static', filename='uploads/' + user.avatar) }}" alt="用户头像">
+                            {% else %}
+                                <img src="{{ url_for('static', filename='uploads/1_.png') }}" alt="默认头像">
+                            {% endif %}
+                        </div>
+                        <h2>{{ user.name if user.name else '--' }}</h2>
+                        <div class="info-item">
+                            <span class="label">角色：</span>
+                            <span class="value">{{ user.role if user.role else '--' }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">性别：</span>
+                            <span class="value">{{ user.gender if user.gender else '--' }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">手机号：</span>
+                            <span class="value">{{ user.phone if user.phone else '--' }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">邮箱：</span>
+                            <span class="value">{{ user.email if user.email else '--' }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">创建时间：</span>
+                            <span class="value">{{ user.created_at if user.created_at else '--' }}</span>
+                        </div>
+                    </div>
+                </div>
+            
+                <!-- 右侧信息管理区域 -->
+                <div class="profile-management">
+                    <!-- 信息修改区域 -->
+                    <div class="edit-section">
+                        <h2>信息管理</h2>
+                        
+                        <!-- 标签页 -->
+                        <div class="tabs">
+                            <button class="tab-btn active" data-tab="basic">基本资料</button>
+                            <button class="tab-btn" data-tab="password">修改密码</button>
+                        </div>
+                        
+                        <!-- 基本资料表单 -->
+                        <div class="tab-content active" id="basic">
+                            <form id="profile-form" class="modern-form single-column" enctype="multipart/form-data">
+                                <div class="form-group">
+                                    <label for="name"><span class="required">*</span>用户姓名：</label>
+                                    <input type="text" id="name" name="name" value="{{ user.name if user.name else '' }}" placeholder="请输入用户姓名" required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="phone"><span class="required">*</span>手机号：</label>
+                                    <input type="text" id="phone" name="phone" value="{{ user.phone if user.phone else '' }}" placeholder="请输入手机号" required pattern="^1[3-9]\d{9}$" maxlength="11" oninput="this.value=this.value.replace(/[^\d]/g,'');">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="email"><span class="required">*</span>邮箱：</label>
+                                    <input type="email" id="email" name="email" value="{{ user.email if user.email else '' }}" placeholder="请输入邮箱" required pattern="^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="gender">性别：</label>
+                                    <select id="gender" name="gender" style="width: 100%; padding: 12px 16px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 16px; transition: all 0.3s ease; background-color: white; cursor: pointer;">
+                                        <option value="" {% if not user.gender %}selected{% endif %}>请选择</option>
+                                        <option value="男" {% if user.gender == '男' %}selected{% endif %}>男</option>
+                                        <option value="女" {% if user.gender == '女' %}selected{% endif %}>女</option>
+                                    </select>
+                                    <style>
+                                        #gender:focus {
+                                            outline: none;
+                                            border-color: #4facfe;
+                                            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+                                            transform: translateY(-1px);
+                                        }
+                                        #gender option {
+                                            padding: 8px;
+                                            font-size: 14px;
+                                        }
+                                    </style>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="avatar" style="display: none;">头像：</label>
+                                    <input type="file" id="avatar" name="avatar" accept="image/*" style="display: none;">
+                                </div>
+
+                                <div class="form-actions">
+                                    <button type="submit" class="btn save-btn">保存修改</button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- 修改密码表单 -->
+                        <div class="tab-content" id="password">
+                            <form id="password-form" class="modern-form single-column">
+                                <div class="form-group">
+                                        <label for="old_password"><span class="required">*</span>原密码：</label>
+                                        <div class="password-input-group">
+                                            <input type="password" id="old_password" name="old_password" placeholder="请输入原密码" required>
+                                            <button type="button" class="password-toggle" onclick="togglePasswordVisibility('old_password')" aria-label="显示密码">
+                                                <i class="bi bi-eye-slash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new_password"><span class="required">*</span>新密码：</label>
+                                        <div class="password-input-group">
+                                            <input type="password" id="new_password" name="new_password" placeholder="请输入新密码" required>
+                                            <button type="button" class="password-toggle" onclick="togglePasswordVisibility('new_password')" aria-label="显示密码">
+                                                <i class="bi bi-eye-slash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="confirm_password"><span class="required">*</span>确认新密码：</label>
+                                        <div class="password-input-group">
+                                            <input type="password" id="confirm_password" name="confirm_password" placeholder="请确认新密码" required>
+                                            <button type="button" class="password-toggle" onclick="togglePasswordVisibility('confirm_password')" aria-label="显示密码">
+                                                <i class="bi bi-eye-slash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                
+                                <div class="form-actions">
+                                    <button type="submit" class="btn save-btn">修改密码</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+    
+    <script type="module">
+        // 引入通用工具库
+        // 使用Flask模板语法生成静态文件URL
+        import { apiCall, showMessage, validateForm, togglePasswordVisibility, initPasswordToggle } from '{{ url_for('static', filename='js/utils.js') }}';
+        
+        // 暴露函数到全局作用域以便onclick使用
+        window.togglePasswordVisibility = togglePasswordVisibility;
+        window.initPasswordToggle = initPasswordToggle;
+        window.showMessage = showMessage;
+        
+        // 标签页切换功能
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化密码可见性切换
+            initPasswordToggle();
+            
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tabId = btn.getAttribute('data-tab');
+                    
+                    // 移除所有激活状态
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    tabContents.forEach(c => c.classList.remove('active'));
+                    
+                    // 添加当前激活状态
+                    btn.classList.add('active');
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+            
+            // 为输入数据类型错误添加实时弹窗提示
+            document.addEventListener('DOMContentLoaded', () => {
+                // 手机号实时验证
+                const phoneInput = document.getElementById('phone');
+                if (phoneInput) {
+                    phoneInput.addEventListener('input', () => {
+                        const phoneValue = phoneInput.value;
+                        if (phoneValue && !/^1[3-9]\d*$/.test(phoneValue)) {
+                            showMessage('手机号必须以1开头的11位数字', 'error');
+                        }
+                    });
+                }
+                
+                // 邮箱实时验证
+                const emailInput = document.getElementById('email');
+                if (emailInput) {
+                    emailInput.addEventListener('input', () => {
+                        const emailValue = emailInput.value;
+                        if (emailValue && !/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(emailValue)) {
+                            showMessage('请输入正确格式的邮箱地址', 'error');
+                        }
+                    });
+                }
+            });
+            
+            // 基本资料表单提交处理
+            const profileForm = document.getElementById('profile-form');
+            if (profileForm) {
+                profileForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    // 移除所有输入框的无效状态
+                    document.querySelectorAll('.form-group input').forEach(input => {
+                        input.setCustomValidity('');
+                    });
+                    
+                    // 表单验证
+                    const nameInput = document.getElementById('name');
+                    const phoneInput = document.getElementById('phone');
+                    const emailInput = document.getElementById('email');
+                    let hasError = false;
+                    let errorMessage = '';
+                    
+                    // 姓名验证
+                    if (!nameInput.value.trim()) {
+                        hasError = true;
+                        errorMessage = '请输入用户姓名';
+                        nameInput.setCustomValidity('姓名不能为空');
+                    }
+                    
+                    // 手机号验证
+                    else if (!phoneInput.value.trim()) {
+                        hasError = true;
+                        errorMessage = '请输入手机号';
+                        phoneInput.setCustomValidity('手机号不能为空');
+                    } else if (!phoneInput.checkValidity()) {
+                        hasError = true;
+                        errorMessage = '请输入正确的11位手机号';
+                        phoneInput.setCustomValidity('手机号格式错误');
+                    }
+                    
+                    // 邮箱验证
+                    else if (!emailInput.value.trim()) {
+                        hasError = true;
+                        errorMessage = '请输入邮箱地址';
+                        emailInput.setCustomValidity('邮箱不能为空');
+                    } else if (!emailInput.checkValidity()) {
+                        hasError = true;
+                        errorMessage = '请输入正确的邮箱地址';
+                        emailInput.setCustomValidity('邮箱格式错误');
+                    }
+                    
+                    // 如果有错误，显示提示
+                    if (hasError) {
+                        showMessage(errorMessage, 'error');
+                        return;
+                    }
+                    
+                    // 获取表单数据
+                    const formData = new FormData();
+                    formData.append('name', nameInput.value);
+                    formData.append('email', emailInput.value);
+                    formData.append('phone', phoneInput.value);
+                    
+                    const genderSelect = document.getElementById('gender');
+                    if (genderSelect.value) {
+                        formData.append('gender', genderSelect.value);
+                    }
+                    
+                    // 处理头像上传
+                    const avatarInput = document.getElementById('avatar');
+                    if (avatarInput.files.length > 0) {
+                        formData.append('avatar', avatarInput.files[0]);
+                    }
+                    
+                    // 使用通用API调用工具
+                    try {
+                        // 转换FormData为普通对象，以便使用PUT方法
+                        const data = {};
+                        formData.forEach((value, key) => {
+                            data[key] = value;
+                        });
+                        
+                        const result = await apiCall('/api/profile', 'PUT', data);
+                        if (result.code === 200) {
+                            showMessage(result.msg || '个人信息已更新', 'success');
+                        // 刷新页面或更新页面内容
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                        } else {
+                            showMessage(result.msg || '更新失败', 'error');
+                        }
+                    } catch (error) {
+                        showMessage(error.message || '更新失败，请稍后重试', 'error');
+                    }
+                });
+            }
+            
+            // 修改密码表单提交处理
+            const passwordForm = document.getElementById('password-form');
+            if (passwordForm) {
+                passwordForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    // 使用通用表单验证工具
+                    const validationRules = {
+                        old_password: { required: true }, // 旧密码只需要必填
+                        new_password: { required: true, minLength: 6, maxLength: 20, message: '密码长度应在6-20个字符之间' }, // 新密码需要和注册一样的限制
+                        confirm_password: { required: true, equalTo: 'new_password', message: '两次输入的密码不一致' } // 确认密码需要和新密码一致
+                    };
+                    
+                    if (!validateForm('password-form', validationRules, showMessage)) {
+                        return;
+                    }
+                    
+                    // 获取表单数据
+                    const data = {
+                        old_password: document.getElementById('old_password').value,
+                        new_password: document.getElementById('new_password').value,
+                        confirm_password: document.getElementById('confirm_password').value
+                    };
+                    
+                    // 使用通用API调用工具
+                    try {
+                        const result = await apiCall('/api/profile/change_password', 'POST', data);
+                        if (result.code === 200) {
+                            showMessage(result.msg || '密码已更新', 'success');
+                            passwordForm.reset();
+                            
+                            // 如果响应消息包含重新登录的提示，延迟跳转到登录页面
+                            if (result.msg && result.msg.includes('重新登录')) {
+                                setTimeout(() => {
+                                    window.location.href = '/login';
+                                }, 1000);
+                            }
+                        } else {
+                            showMessage(result.msg || '密码更新失败', 'error');
+                        }
+                    } catch (error) {
+                        showMessage(error.message || '请求失败', 'error');
+                    }
+                });
+            }
+            
+            // 控制顶部通知栏显示的函数
+            function showTopNotice(message, type = 'info', duration = 3000) {
+                const notice = document.getElementById('top-notice');
+                const messageEl = document.getElementById('notice-message');
+                
+                if (notice && messageEl) {
+                    messageEl.textContent = message;
+                    
+                    // 移除所有状态类
+                    notice.className = 'top-notice';
+                    // 添加当前状态类
+                    notice.classList.add(type);
+                    
+                    notice.style.display = 'block';
+                    
+                    // 设置自动隐藏
+                    setTimeout(() => {
+                        notice.style.display = 'none';
+                    }, duration);
+                }
+            }
+        });
+        // 头像选择后立即上传
+        document.getElementById('avatar').addEventListener('change', function(e) {
+            if (this.files.length > 0) {
+                const file = this.files[0];
+                const formData = new FormData();
+                formData.append('avatar', file);
+                
+                // 不再显示上传中的消息
+                
+                // 调用API上传头像
+                fetch('/api/profile/update', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrf_token')
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.code === 200) {
+                        showMessage('头像上传成功', 'success');
+                        // 更新页面上的头像显示
+                        const avatarImg = document.querySelector('.user-avatar img');
+                        if (avatarImg) {
+                            // 添加时间戳避免缓存问题
+                            avatarImg.src = `/static/uploads/${result.data.avatar}?t=${new Date().getTime()}`;
+                        }
+                        // 1秒后自动刷新页面
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    } else {
+                        showMessage(result.msg || '头像上传失败', 'error');
+                    }
+                })
+                .catch(error => {
+                    showMessage('头像上传失败，请稍后重试', 'error');
+                });
+            }
+        });
+        
+        // 获取CSRF令牌的辅助函数
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+    </script>
+</body>
+</html>

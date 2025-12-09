@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>审计日志 - 项目管理平台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-icons.css') }}">
+    <script type="module">
+        // 从utils.js导入所需函数
+        import { showConfirm } from '{{ url_for('static', filename='js/utils.js') }}';
+        
+        // 登出确认函数
+        window.confirmLogout = async function(event) {
+            // 阻止默认跳转行为
+            event.preventDefault();
+            
+            // 显示确认对话框
+            const result = await showConfirm('确定要登出吗？', 'warning');
+            
+            // 用户确认，执行登出操作
+            if (result) {
+                window.location.href = '{{ url_for('logout') }}';
+            }
+            // 用户取消，不执行任何操作
+            return false;
+        }
+    </script>
+
+</head>
+<body class="profile-page">
+    <!-- 顶部通知栏 -->    
+    <div id="top-notice" class="top-notice" style="display: none;">
+        <span id="notice-message"></span>
+    </div>
+    
+
+    
+    <div class="profile-container">
+        <!-- 主布局：左侧导航栏 + 右侧内容区域 -->
+        <div class="main-layout">
+            <!-- 左侧导航栏 -->
+            <nav class="side-nav">
+                <div class="nav-header">
+                    <h2>个人信息管理系统</h2>
+                </div>
+                <ul class="nav-menu">
+                    <li class="nav-item">
+                        <a href="{{ url_for('profile_page') }}" class="nav-link">
+                            <i class="bi bi-person"></i>
+                            <span>个人信息管理</span>
+                        </a>
+                    </li>
+                    {% if current_user_has_permission('用户管理') %}
+                        <li class="nav-item">
+                            <a href="{{ url_for('user_management_page') }}" class="nav-link">
+                                <i class="bi bi-people"></i>
+                                <span>用户管理</span>
+                            </a>
+                        </li>
+                    {% endif %}
+                    {% if current_user_has_permission('角色管理') %}
+                        <li class="nav-item">
+                            <a href="{{ url_for('role_management_page') }}" class="nav-link">
+                                <i class="bi bi-person-badge"></i>
+                                <span>角色管理</span>
+                            </a>
+                        </li>
+                    {% endif %}
+                    {% if current_user_has_permission('审计日志管理') %}
+                        <li class="nav-item active">
+                            <a href="{{ url_for('audit_logs_page') }}" class="nav-link">
+                                <i class="bi bi-clock-history"></i>
+                                <span>审计日志</span>
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            
+            <!-- 右侧内容区域 -->
+            <main class="content-area">
+                <!-- 页面标题 -->
+                <div class="page-header">
+                    <h1>审计日志</h1>
+                    <div class="logout-container">
+                        <a href="{{ url_for('logout') }}" class="btn logout-btn" onclick="return confirmLogout(event)">
+                            <i class="bi bi-box-arrow-right"></i> 注销
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="profile-content">
+            <!-- 日志列表 -->
+            <section class="user-list-section">
+                <h2>日志列表</h2>
+                
+                <!-- 查询模块 -->
+                <div class="search-module">
+                    <div class="search-inputs">
+
+                        <div class="search-item">
+                            <label for="username-search">用户名：</label>
+                            <input type="text" id="username-search" placeholder="请输入用户名">
+                        </div>
+                        <div class="search-item">
+                            <label for="action-search">操作类型：</label>
+                            <input type="text" id="action-search" placeholder="请输入操作类型">
+                        </div>
+                        <div class="search-item">
+                            <label for="target-search">操作目标：</label>
+                            <input type="text" id="target-search" placeholder="请输入操作目标">
+                        </div>
+                        <div class="search-item">
+                            <label for="details-search">操作详情：</label>
+                            <input type="text" id="details-search" placeholder="请输入操作详情">
+                        </div>
+                        <div class="search-item date-range">
+                            <label>时间范围：</label>
+                            <div class="date-range-inputs" id="date-range-container">
+                                <input type="date" id="start-time-search" placeholder="开始日期">
+                                <span class="date-range-separator">至</span>
+                                <input type="date" id="end-time-search" placeholder="结束日期">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="search-actions">
+                        <button type="button" class="btn btn-primary" id="search-btn">
+                            <i class="bi bi-search"></i> 查询
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="reset-btn">
+                            <i class="bi bi-arrow-clockwise"></i> 重置
+                        </button>
+                        <button type="button" class="btn btn-success" id="export-btn">
+                            <i class="bi bi-download"></i> 导出CSV
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 加载指示器 -->
+                <div id="loading-indicator" style="display: none; text-align: center; margin: 20px 0;">
+                    <div class="spinner-border" role="status">
+                        <span class="sr-only">加载中...</span>
+                    </div>
+                    <p>正在加载日志数据...</p>
+                </div>
+                
+                <!-- 日志表格 -->
+                <div class="table-container">
+                    <table class="modern-table">
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>用户名</th>
+                                <th>操作类型</th>
+                                <th>操作目标</th>
+                                <th>操作详情</th>
+                                <th>IP地址</th>
+                                <th>创建时间</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-table-body">
+                            <!-- 日志数据将通过JavaScript动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 分页控制 -->
+                <div class="pagination-container">
+                    <div class="pagination-info">
+                        <span>共 <span id="total-logs">0</span> 条记录</span>
+                        <span>第 <span id="current-page">1</span>/<span id="total-pages">1</span> 页</span>
+                    </div>
+                    <div class="pagination-controls">
+                        <button class="btn btn-sm btn-outline-primary" onclick="goToPage(1)" id="first-page-btn" disabled>首页</button>
+                        <button class="btn btn-sm btn-outline-primary" onclick="goToPage(currentPage - 1)" id="prev-page-btn" disabled>
+                            上一页
+                        </button>
+                        <div class="page-size-selector">
+                            <label for="page-size">每页显示：</label>
+                            <select id="page-size" onchange="changePageSize()">
+                                <option value="10" selected>10</option>
+                                <option value="30">30</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="goToPage(currentPage + 1)" id="next-page-btn" disabled>
+                            下一页
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" onclick="goToPage(totalPages)" id="last-page-btn" disabled>末页</button>
+                        <div class="page-jump">
+                            <label for="page-input">跳转到：</label>
+                            <input type="number" id="page-input" min="1" value="1">
+                            <button class="btn btn-sm btn-primary" onclick="jumpToPage()">跳转</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+        </div>
+    </div>
+    
+    <!-- 引入工具函数 -->
+    <script type="module">
+        // 从utils.js导入所需函数
+        import { apiCall, showMessage } from '{{ url_for('static', filename='js/utils.js') }}';
+        
+        // 将函数添加到全局作用域，以便页面中的其他脚本可以调用
+        window.apiCall = apiCall;
+        window.showMessage = showMessage;
+    </script>
+    
+    <!-- 脚本部分 -->
+    <script>
+        // 当前页码和每页大小
+        let currentPage = 1;
+        let pageSize = 10;
+        let totalPages = 1;
+        let searchParams = {};
+        let loadLogsTimeout = null;
+        const DEBOUNCE_DELAY = 300; // 防抖延迟时间（毫秒）
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadLogs();
+            
+            // 搜索按钮点击事件
+            document.getElementById('search-btn').addEventListener('click', function() {
+                searchParams = {
+                    username: document.getElementById('username-search').value.trim(),
+                    action: document.getElementById('action-search').value.trim(),
+                    target: document.getElementById('target-search').value.trim(),
+                    details: document.getElementById('details-search').value.trim(),
+                    start_time: document.getElementById('start-time-search').value,
+                    end_time: document.getElementById('end-time-search').value,
+                    page: 1,
+                    page_size: pageSize
+                };
+                loadLogs();
+            });
+            
+            // 重置按钮点击事件
+            document.getElementById('reset-btn').addEventListener('click', resetSearch);
+            
+            // 导出按钮点击事件
+            document.getElementById('export-btn').addEventListener('click', exportLogs);
+        });
+        
+        // 加载日志数据（添加防抖机制）
+        function loadLogs() {
+            // 如果有未执行的请求，取消它
+            if (loadLogsTimeout) {
+                clearTimeout(loadLogsTimeout);
+            }
+            
+            // 延迟执行请求，避免短时间内发起多次请求
+            loadLogsTimeout = setTimeout(async () => {
+                currentPage = searchParams.page || 1;
+                pageSize = searchParams.page_size || 10;
+                
+                const loadingIndicator = document.getElementById('loading-indicator');
+                loadingIndicator.style.display = 'block';
+                
+                // 构建查询参数
+                const params = {
+                    page: currentPage,
+                    page_size: pageSize
+                };
+                
+                if (searchParams.username) params.username = searchParams.username;
+                if (searchParams.action) params.action = searchParams.action;
+                if (searchParams.target) params.target = searchParams.target;
+                if (searchParams.details) params.details = searchParams.details;
+                if (searchParams.start_time) params.start_time = searchParams.start_time;
+                if (searchParams.end_time) params.end_time = searchParams.end_time;
+            
+            // 使用apiCall工具函数调用API
+            apiCall('/api/audit_logs', 'GET', params)
+                .then(data => {
+                    if (data.code === 200) {
+                        renderLogs(data.data.logs);
+                        updatePagination(data.data.page, data.data.page_size, data.data.total, data.data.total_pages);
+                    } else {
+                        showMessage('加载日志失败：' + data.msg, 'error');
+                    }
+                })
+                .catch(error => {
+                    if (error.message.includes('请先登录')) {
+                        showMessage('请先登录以获取日志', 'error');
+                        setTimeout(() => {
+                            window.location.href = '{{ url_for('login_page') }}';
+                        }, 1500);
+                    } else if (error.message.includes('没有权限')) {
+                        showMessage('您没有权限访问审计日志', 'error');
+                    } else {
+                        showMessage('获取日志失败：' + error.message, 'error');
+                    }
+                })
+                .finally(() => {
+                    loadingIndicator.style.display = 'none';
+                });
+            }, DEBOUNCE_DELAY);
+        }
+        
+        // 渲染日志数据
+        function renderLogs(logs) {
+            const tbody = document.getElementById('log-table-body');
+            tbody.innerHTML = '';
+            
+            if (logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="no-data">暂无日志数据</td></tr>';
+                return;
+            }
+            
+            logs.forEach((log, index) => {
+                const sequentialNumber = (currentPage - 1) * pageSize + index + 1;
+                const row = document.createElement('tr');
+                
+                // 格式化时间
+                let createdAt;
+                if (log.created_at) {
+                    let timeStr = log.created_at;
+                    
+                    // 处理RFC 822格式
+                    if (/^[A-Za-z]{3}, \d{2} [A-Za-z]{3} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(timeStr)) {
+                        const months = { 'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06', 
+                                       'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12' };
+                        const parts = timeStr.split(' ');
+                        const day = parts[1];
+                        const month = months[parts[2]];
+                        const year = parts[3];
+                        const time = parts[4];
+                        timeStr = `${year}-${month}-${day} ${time}`;
+                    }
+                    // 处理ISO格式
+                    else if (timeStr.includes('T')) {
+                        timeStr = timeStr.replace('T', ' ');
+                        if (timeStr.includes('.')) {
+                            timeStr = timeStr.split('.')[0];
+                        }
+                    }
+                    
+                    // 转换为yyyy/mm/dd hh:mm:ss格式
+                    createdAt = timeStr.replace(/-/g, '/');
+                } else {
+                    createdAt = '无时间记录';
+                }
+                
+                // 格式化详情显示
+                function formatDetails(action, detailsJson) {
+                    try {
+                        let details;
+                        if (typeof detailsJson === 'object') {
+                            details = detailsJson;
+                        } else {
+                            details = JSON.parse(detailsJson);
+                        }
+                        if (!details) return '无详细信息';
+                        
+                        if (details.formatted) {
+                            return details.formatted;
+                        }
+                        
+                        // 兼容旧数据，使用前端格式化逻辑
+                        switch(action) {
+                            case '登录':
+                                return `登录${details.result === '成功' ? '成功' : `失败：${details.error || details.reason || ''}`}`;
+                            case '注销':
+                            case '退出登录':
+                                return '用户退出登录系统';
+                            case '创建用户':
+                                return `创建用户：${details.username} (角色：${details.role})`;
+                            case '编辑用户':
+                                if (details.old_role && details.new_role && details.old_role !== details.new_role) {
+                                    return `更新用户角色设置，从 ${details.old_role} 改为 ${details.new_role}`;
+                                } else {
+                                    return '更新用户信息';
+                                }
+                            case '删除用户':
+                                return `删除用户：${details.username}`;
+                            case '重置密码':
+                                return `重置用户密码：${details.username}`;
+                            case '修改密码':
+                                return '修改个人密码';
+                            case '更新角色':
+                                return `更新角色 ${details.role || details.new_role_name} 权限设置`;
+                            case '删除角色':
+                                return `删除角色：${details.role || details.role_name}`;
+                            case '批量删除角色':
+                                if (details.roles && details.roles.length > 0) {
+                                    return `批量删除角色：${details.roles.join(', ')}`;
+                                } else {
+                                    return `批量删除角色：共${details.count || 0}个`;
+                                }
+                            case '创建角色':
+                                return `创建角色 ${details.role_name}，包含 ${details.permissions?.length || 0} 个权限`;
+                            case '更换头像':
+                                return '更换个人头像';
+                            case '修改资料':
+                                return '修改个人资料';
+                            default:
+                                // 通用格式
+                                return Object.entries(details)
+                                    .filter(([key, value]) => key !== 'formatted' && value)
+                                    .map(([key, value]) => {
+                                        const keyMap = {
+                                            'result': '结果',
+                                            'username': '用户名',
+                                            'role': '角色',
+                                            'old_role': '原角色',
+                                            'new_role': '新角色',
+                                            'role_name': '角色名称',
+                                            'permissions': '权限数量',
+                                            'error': '错误',
+                                            'reason': '原因',
+                                            'name': '名称'
+                                        };
+                                        const displayKey = keyMap[key] || key;
+                                        const displayValue = key === 'permissions' && Array.isArray(value) ? `${value.length}个` : value;
+                                        return `${displayKey}：${displayValue}`;
+                                    })
+                                    .join('；');
+                        }
+                    } catch (e) {
+                    return detailsJson || '无详细信息';
+                    }
+                }
+                
+                let details = formatDetails(log.action, log.details);
+                
+                row.innerHTML = `
+                    <td>${sequentialNumber}</td>
+                    <td>${log.username}</td>
+                    <td>${log.action}</td>
+                    <td>${log.target}</td>
+                    <td class="details-cell"><pre>${details}</pre></td>
+                    <td>${log.ip_address}</td>
+                    <td>${createdAt}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        // 更新分页信息
+        function updatePagination(page, pageSize, total, totalPagesCount) {
+            totalPages = totalPagesCount;
+            
+            document.getElementById('total-logs').textContent = total;
+            document.getElementById('current-page').textContent = page;
+            document.getElementById('total-pages').textContent = totalPages;
+            
+            document.getElementById('first-page-btn').disabled = page === 1;
+            document.getElementById('prev-page-btn').disabled = page === 1;
+            document.getElementById('next-page-btn').disabled = page === totalPages;
+            document.getElementById('last-page-btn').disabled = page === totalPages;
+            
+            document.getElementById('page-size').value = pageSize;
+            document.getElementById('page-input').value = page;
+        }
+        
+        // 跳转到指定页码
+        function goToPage(page) {
+            if (page < 1 || page > totalPages) return;
+            searchParams.page = page;
+            loadLogs();
+        }
+        
+        // 改变每页显示数量
+        function changePageSize() {
+            pageSize = parseInt(document.getElementById('page-size').value);
+            searchParams = {
+                ...searchParams,
+                page: 1,
+                page_size: pageSize
+            };
+            loadLogs();
+        }
+        
+        // 跳转到指定页码
+        function jumpToPage() {
+            let page = parseInt(document.getElementById('page-input').value);
+            if (isNaN(page)) page = 1;
+            if (page < 1) page = 1;
+            if (page > totalPages) page = totalPages;
+            searchParams.page = page;
+            loadLogs();
+        }
+        
+        // 重置查询
+        function resetSearch() {
+            document.getElementById('username-search').value = '';
+            document.getElementById('action-search').value = '';
+            document.getElementById('target-search').value = '';
+            document.getElementById('details-search').value = '';
+            document.getElementById('start-time-search').value = '';
+            document.getElementById('end-time-search').value = '';
+            searchParams = {
+                page: 1,
+                page_size: pageSize
+            };
+            loadLogs();
+        }
+        
+        // 导出日志
+        function exportLogs() {
+            // 获取当前查询参数
+            const username = searchParams.username || '';
+            const action = searchParams.action || '';
+            const target = searchParams.target || '';
+            const details = searchParams.details || '';
+            const startTime = searchParams.start_time || '';
+            const endTime = searchParams.end_time || '';
+            
+            // 构建导出URL
+            let url = '/api/audit_logs/export?format=csv';
+            
+            if (username) url += `&username=${username}`;
+            if (action) url += `&action=${action}`;
+            if (target) url += `&target=${target}`;
+            if (details) url += `&details=${details}`;
+            if (startTime) url += `&start_time=${startTime}`;
+            if (endTime) url += `&end_time=${endTime}`;
+            
+            // 下载文件
+            window.location.href = url;
+        }
+    </script>
+</body>
+</html>
